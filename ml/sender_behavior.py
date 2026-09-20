@@ -2,12 +2,12 @@
 Engine 3: Sender & Behavior.
 Scores how suspicious a message's sender identity and behavior pattern look,
 independent of content or URLs. Uses persistent SQLite-based tracking
-(sender_db.py) instead of a JSON file, and includes writing-style deviation
-detection to catch possible compromised accounts.
+(sender_db.py), and includes writing-style deviation detection to catch
+possible compromised accounts once enough history exists for a sender.
 """
 
 import re
-from sender_db import check_style_deviation
+from sender_db import check_style_deviation, get_sender
 
 KNOWN_BRANDS = [
     "paypal", "amazon", "apple", "microsoft", "google", "netflix",
@@ -79,12 +79,18 @@ def score_sender_behavior(raw_sender: str, body_text: str = "", headers: dict = 
         score += 5
         reasons.append("No authentication headers present to verify sender")
 
-    style_check = check_style_deviation(address, body_text)
-    is_first_contact = not style_check["has_baseline"]
+    # Is this genuinely the first message ever seen from this address?
+    existing_sender = get_sender(address)
+    is_first_contact = existing_sender is None
+
     if is_first_contact:
         score += 15
         reasons.append("First time this user has received a message from this sender")
+    elif existing_sender["message_count"] < 3:
+        # Established but not enough history yet for a style baseline - low risk, no penalty
+        pass
     else:
+        style_check = check_style_deviation(address, body_text)
         score += style_check["deviation_score"]
         reasons.extend(style_check["reasons"])
 
@@ -95,7 +101,6 @@ def score_sender_behavior(raw_sender: str, body_text: str = "", headers: dict = 
         "identity": identity,
         "auth": auth,
         "is_first_contact": is_first_contact,
-        "style_check": style_check,
     }
 
 
