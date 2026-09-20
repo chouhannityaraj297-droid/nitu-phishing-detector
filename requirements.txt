@@ -3,3 +3,5 @@ uvicorn[standard]
 pydantic
 scikit-learn
 joblib
+requests
+python-dotenv
