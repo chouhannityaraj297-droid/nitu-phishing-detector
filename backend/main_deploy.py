@@ -1,5 +1,5 @@
 ﻿"""
-Deployment version of the backend API — uses the lightweight TF-IDF model
+Deployment version of the backend API - uses the lightweight TF-IDF model
 instead of DistilBERT, to fit within free-tier cloud memory limits.
 """
 
@@ -15,6 +15,8 @@ from typing import Optional, List, Dict
 
 from fusion import score_message
 from content_model_lightweight import score_content
+from sender_db import record_sender_seen
+from sender_behavior import parse_display_name_mismatch
 
 app = FastAPI(title="Phishing Detection API (Lightweight)", version="0.1.0")
 
@@ -55,6 +57,12 @@ def analyze_message(request: AnalyzeRequest):
         content_score=content_score,
         urls=request.urls,
         raw_sender=request.raw_sender,
+        body_text=request.body_text,
         headers=request.headers,
     )
+
+    identity = parse_display_name_mismatch(request.raw_sender)
+    address = identity["address"] or request.raw_sender
+    record_sender_seen(address, request.body_text)
+
     return result

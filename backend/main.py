@@ -1,16 +1,11 @@
-"""
-Backend API for the phishing detection system.
-Exposes a single endpoint that runs a message through all 3 engines + fusion layer
-and returns a risk score with a plain-language explanation.
-
-Run locally with: uvicorn main:app --reload --port 8000
-Then test at: http://127.0.0.1:8000/docs (interactive API docs, auto-generated)
+﻿"""
+Backend API for the phishing detection system (local version).
+Runs the full DistilBERT model for Engine 1.
 """
 
 import sys
 from pathlib import Path
 
-# Allow importing the ml/ folder's modules from here
 sys.path.append(str(Path(__file__).parent.parent / "ml"))
 
 from fastapi import FastAPI
@@ -20,8 +15,11 @@ from typing import Optional, List, Dict
 
 from fusion import score_message
 from content_model import score_content
+from sender_db import record_sender_seen
+from sender_behavior import parse_display_name_mismatch
 
 app = FastAPI(title="Phishing Detection API", version="0.1.0")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://mail.google.com"],
@@ -53,16 +51,18 @@ def root():
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze_message(request: AnalyzeRequest):
-    """
-    Analyze a single email/SMS message and return a risk score.
-    Now uses the real trained Engine 1 model to score message content.
-    """
     content_score = score_content(request.subject, request.body_text)
 
     result = score_message(
         content_score=content_score,
         urls=request.urls,
         raw_sender=request.raw_sender,
+        body_text=request.body_text,
         headers=request.headers,
     )
+
+    identity = parse_display_name_mismatch(request.raw_sender)
+    address = identity["address"] or request.raw_sender
+    record_sender_seen(address, request.body_text)
+
     return result
