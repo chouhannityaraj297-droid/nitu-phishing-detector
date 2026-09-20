@@ -8,7 +8,7 @@
  * appearing after a Gmail update, the selectors will need adjusting.
  */
 
-const API_URL = "http://127.0.0.1:8000/analyze";
+const API_URL = "https://nitu-phishing-detector.onrender.com/analyze";
 const processedEmails = new Set();
 
 function extractEmailData(emailContainer) {
